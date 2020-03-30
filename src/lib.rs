@@ -1,7 +1,7 @@
 extern crate rand;
 
 use rand::{Rng, SeedableRng};
-use rand::rngs::SmallRng;
+use rand::rngs::{SmallRng, ThreadRng};
 use rand::distributions::{Bernoulli, Distribution};
 
 /// Original Velvet Noise impulse location iterator
@@ -29,6 +29,38 @@ impl Iterator for OVNImpulseLocations {
     fn next(&mut self) -> Option<Self::Item> {
         let val = (self.m.next().unwrap() * self.td) + self.r1m.gen_range(0, self.td);
         Some(val)
+    }
+}
+
+
+/// Additive Random Noise impulse location iterator
+pub struct ARNImpulseLocations {
+    m_prev: f32,
+    td_minus_1: f32,
+    delta: f32,
+    r1m: ThreadRng
+}
+
+impl ARNImpulseLocations {
+    /// density is non-zero pulses per second
+    /// sample_rate is total samples per second
+    pub fn new(density: f32, sample_rate: f32, delta: f32) -> ARNImpulseLocations {
+        ARNImpulseLocations {
+            m_prev: 0.,
+            td_minus_1: (sample_rate / density) - 1.,
+            delta: delta,
+            r1m: rand::thread_rng()
+        }
+    }
+}
+
+impl Iterator for ARNImpulseLocations {
+    type Item = usize;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let val = self.m_prev + 1. + (self.td_minus_1 * (1. - self.delta)) + (2. * self.delta * self.td_minus_1 * self.r1m.gen::<f32>());
+        self.m_prev = val;
+        Some(val as usize)
     }
 }
 
@@ -122,6 +154,27 @@ impl Iterator for VelvetNoise {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use more_asserts::{assert_ge, assert_le};
+
+    macro_rules! assert_close_enough {
+        ($value:expr, $expected:expr, $range:expr) => ({
+            let (value, expected, range) = (&($value), &($expected), &($range));
+            assert_ge!(*value, *expected - *range);
+            assert_le!(*value, *expected + *range);
+        });
+    }
+
+    fn spread(data: &[f32]) -> f32 {
+        let dev = (0..data.len() - 1)
+            .map(|i| {
+                (*data)[i + 1] as f32 - (*data)[i] as f32
+            })
+            .collect::<Vec<f32>>();
+        
+        let max = dev.iter().cloned().fold(f32::NAN, f32::max);
+        let min = dev.iter().cloned().fold(f32::NAN, f32::min);
+        max - min
+    }
 
     #[test]
     fn window_size() {
@@ -144,6 +197,32 @@ mod tests {
         let num_impulses = vil.take_while(|loc| (*loc) < until).count();
 
         assert_eq!(num_impulses / seconds, density);
+    }
+
+    #[test]
+    fn iter_arn_locations() {
+        
+        // Run iterator for a long time and check that the average impulse density is correct
+        // density and sample rate from http://dafx.de/paper-archive/2019/DAFx2019_paper_53.pdf
+        
+        let density = 2000;
+        let sample_rate = 96000;
+        let seconds = 100;
+        let until = sample_rate * seconds;
+
+        let max_spread = (sample_rate as f32 / density as f32) * 2.;
+        
+        let locs1 = ARNImpulseLocations::new(density as f32, sample_rate as f32, 0.);
+        let impulses1 = locs1.take_while(|loc| (*loc) < until).map(|x| x as f32).collect::<Vec<f32>>();
+        assert_close_enough!(spread(impulses1.as_slice()), 0., 0.01);
+
+        let locs2 = ARNImpulseLocations::new(density as f32, sample_rate as f32, 1.);
+        let impulses2 = locs2.take_while(|loc| (*loc) < until).map(|x| x as f32).collect::<Vec<f32>>();
+        assert_close_enough!(spread(impulses2.as_slice()), max_spread, 2.);
+        
+        let locs3 = ARNImpulseLocations::new(density as f32, sample_rate as f32, 0.5);
+        let impulses3 = locs3.take_while(|loc| (*loc) < until).map(|x| x as f32).collect::<Vec<f32>>();
+        assert_close_enough!(spread(impulses3.as_slice()), max_spread * 0.5, 2.);
     }
 
     #[test]
