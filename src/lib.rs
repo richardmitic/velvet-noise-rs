@@ -151,10 +151,51 @@ impl Iterator for VelvetNoise {
 }
 
 
+/// Crushed Original Velvet Noise
+struct CrushedOriginalVelvetNoise {
+    impulses: OVNImpulseLocations,
+    r2m: (Bernoulli, SmallRng),
+    n: usize,
+    kovn: usize
+}
+
+impl CrushedOriginalVelvetNoise {
+    fn new(density: usize, sample_rate: usize, p: f64) -> CrushedOriginalVelvetNoise {
+        let mut imps = OVNImpulseLocations::new(density, sample_rate);
+        let kovn = imps.next().unwrap();
+        CrushedOriginalVelvetNoise {
+            impulses: imps,
+            r2m: (Bernoulli::new(p).unwrap(), SmallRng::from_entropy()),
+            n: 0,
+            kovn: kovn
+        }
+    }
+}
+
+impl Iterator for CrushedOriginalVelvetNoise {
+    type Item = f32;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let value = match self.n == self.kovn {
+            true => {
+                self.kovn = self.impulses.next().unwrap();
+                match self.r2m.0.sample(&mut self.r2m.1) {
+                    true => Some(1.),
+                    false => Some(-1.)
+                }
+            },
+            false => Some(0.)
+        };
+        self.n += 1;
+        value
+    }
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use more_asserts::{assert_ge, assert_le};
+    use more_asserts::*;
 
     macro_rules! assert_close_enough {
         ($value:expr, $expected:expr, $range:expr) => ({
@@ -278,5 +319,36 @@ mod tests {
         // for s in samples.into_iter() {
         //     writer.write_sample(s);
         // }
+    }
+
+    #[test]
+    fn iter_crushed_noise_samples() {
+        
+        // Check that a snippet of velvet noise contains at least one each of -1. and 1., and that
+        // the overall density is correct. We cannot assert the ratio of -1. to 1. since it's
+        // determined by the rand crate.
+        // density and sample rate from http://dafx.de/paper-archive/2019/DAFx2019_paper_53.pdf
+        
+        let density = 8000;
+        let sample_rate = 96000;
+        let crush_factor = 0.75;
+        
+        let noise = CrushedOriginalVelvetNoise::new(density, sample_rate, crush_factor);
+        let samples: Vec<f32> = noise.take(sample_rate).collect();
+
+        assert_eq!(samples.iter().cloned().fold(f32::NAN, f32::max), 1.);
+        assert_eq!(samples.iter().cloned().fold(f32::NAN, f32::min), -1.);
+        assert_gt!(samples.iter().cloned().sum::<f32>(), 0.);
+
+        let spec = hound::WavSpec {
+            channels: 1,
+            sample_rate: sample_rate as u32,
+            bits_per_sample: 32,
+            sample_format: hound::SampleFormat::Float,
+        };
+        let mut writer = hound::WavWriter::create("iter_crushed_noise_samples.wav", spec).unwrap();
+        for s in samples.into_iter() {
+            writer.write_sample(s);
+        }
     }
 }
