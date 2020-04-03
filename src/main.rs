@@ -11,12 +11,12 @@ fn convolve_kern(samples: &[f32], kern: &[(usize, f32)]) -> f32 {
 
 /// Create an endless sound as decribed in http://dafx.de/paper-archive/2018/papers/DAFx2018_paper_11.pdf
 pub fn main() {
-    let mut reader = hound::WavReader::open("guitar_chord_mono.wav").unwrap();
+    let mut reader = hound::WavReader::open("guitar_chord_mono_2.wav").unwrap();
     let samples = reader.samples::<i32>()
         .map(|s| sample::conv::i24::to_f32(sample::types::i24::I24::new_unchecked(s.unwrap())))
         .collect::<Vec<f32>>();
     
-    /// This is used for subsequent convolution coefficients
+    // This is used for subsequent convolution coefficients
     let mut choice = velvet_noise::Choice::classic();
 
     // Create 10 seconds of audio
@@ -32,7 +32,7 @@ pub fn main() {
         velvet_noise::OVNImpulseLocations::new(density as usize, sample_rate as usize),
         velvet_noise::Choice::classic()
     )
-        .take_while(|(i, x)| i < &samples.len())
+        .take_while(|(i, _)| i < &samples.len())
         .collect::<Vec<(usize, f32)>>();
     
     // output
@@ -48,7 +48,7 @@ pub fn main() {
     let gain = 0.3;
     
     for _ in 0..n_samples {
-        writer.write_sample(convolve_kern(&samples, &initial_taps) * gain);
+        writer.write_sample(convolve_kern(&samples, &initial_taps) * gain).unwrap();
         
         for tap in initial_taps.iter_mut() {
             *tap = (tap.0 + 1, tap.1);
@@ -58,7 +58,7 @@ pub fn main() {
         let length_before = initial_taps.len();
         initial_taps.retain(|&tap| tap.0 <= max_index);
         let length_after = initial_taps.len();
-        for _ in (0..(length_before - length_after)) {
+        for _ in 0..(length_before - length_after) {
             initial_taps.push((0, choice.next().unwrap()));
         }
     }
