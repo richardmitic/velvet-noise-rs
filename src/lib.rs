@@ -266,6 +266,19 @@ mod tests {
         max - min
     }
 
+    fn save(sample_rate: u32, data: Vec<f32>, filepath: &str) {
+        let spec = hound::WavSpec {
+            channels: 1,
+            sample_rate: sample_rate,
+            bits_per_sample: 32,
+            sample_format: hound::SampleFormat::Float,
+        };
+        let mut writer = hound::WavWriter::create(filepath, spec).unwrap();
+        for s in data.into_iter() {
+            writer.write_sample(s);
+        }
+    }
+
     #[test]
     fn window_size() {
         let vil = OVNImpulseLocations::new(441, 44100);
@@ -407,16 +420,7 @@ mod tests {
         assert_eq!(samples.iter().map(|s| *s as i32).min(), Some(-1));
         assert_eq!(samples.iter().map(|s| (*s).abs()).sum::<f32>(), density as f32);
 
-        // let spec = hound::WavSpec {
-        //     channels: 1,
-        //     sample_rate: sample_rate as u32,
-        //     bits_per_sample: 32,
-        //     sample_format: hound::SampleFormat::Float,
-        // };
-        // let mut writer = hound::WavWriter::create("iter_noise_samples.wav", spec).unwrap();
-        // for s in samples.into_iter() {
-        //     writer.write_sample(s);
-        // }
+        // save(sample_rate as u32, samples, "iter_noise_samples.wav");
     }
 
     #[test]
@@ -439,16 +443,7 @@ mod tests {
         assert_eq!(samples.iter().cloned().fold(f32::NAN, f32::min), -1.);
         assert_gt!(samples.iter().cloned().sum::<f32>(), 0.);
 
-        // let spec = hound::WavSpec {
-        //     channels: 1,
-        //     sample_rate: sample_rate as u32,
-        //     bits_per_sample: 32,
-        //     sample_format: hound::SampleFormat::Float,
-        // };
-        // let mut writer = hound::WavWriter::create("iter_crushed_noise_samples.wav", spec).unwrap();
-        // for s in samples.into_iter() {
-        //     writer.write_sample(s);
-        // }
+        // save(sample_rate as u32, samples, "iter_crushed_noise_samples.wav");
     }
 
     #[test]
@@ -472,15 +467,6 @@ mod tests {
         assert_eq!(samples.iter().cloned().fold(f32::NAN, f32::min), -1.);
         assert_gt!(samples.iter().cloned().sum::<f32>(), 0.);
 
-        // let spec = hound::WavSpec {
-        //     channels: 1,
-        //     sample_rate: sample_rate as u32,
-        //     bits_per_sample: 32,
-        //     sample_format: hound::SampleFormat::Float,
-        // };
-        // let mut writer = hound::WavWriter::create("iter_crushed_arn_noise_samples.wav", spec).unwrap();
-        // for s in samples.into_iter() {
-        //     writer.write_sample(s);
-        // }
+        // save(sample_rate as u32, samples, "iter_crushed_arn_noise_samples.wav");
     }
 }
