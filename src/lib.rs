@@ -113,16 +113,16 @@ impl Iterator for ChunkedOVNImpulseLocations {
 
 
 /// Random sequence of negative/positive samples
-struct Choice(Bernoulli, SmallRng);
+pub struct Choice(Bernoulli, SmallRng);
 
 impl Choice {
     /// Crushed (skewed) sample choice
-    fn crushed(skew: f64) -> Choice {
+    pub fn crushed(skew: f64) -> Choice {
         Choice(Bernoulli::new(skew).unwrap(), SmallRng::from_entropy())
     }
 
     /// Classic sample choice
-    fn classic() -> Choice {
+    pub fn classic() -> Choice {
         Choice::crushed(0.5)
     }
 }
@@ -142,7 +142,7 @@ impl Iterator for Choice {
 /// Velvet Noise Kernal
 /// Iterator that will generate (index, coefficient) pairs.
 /// All indices not given in a pair are assumed to contain a 0 coefficient
-pub struct VelvetNoiseKernel<T: Iterator<Item=usize>, U: Iterator<Item=f32>> (T, U);
+pub struct VelvetNoiseKernel<T: Iterator<Item=usize>, U: Iterator<Item=f32>> (pub T, pub U);
 
 impl <T, U> Iterator for VelvetNoiseKernel<T, U> where 
     T: Iterator<Item=usize>, 
@@ -204,7 +204,7 @@ impl <T, U> Iterator for VelvetNoise<VelvetNoiseKernel<T, U>> where
 }
 
 
-fn original_velvet_noise(density: f32, sample_rate: f32) -> VelvetNoise <VelvetNoiseKernel<OVNImpulseLocations, Choice>> {
+pub fn original_velvet_noise(density: f32, sample_rate: f32) -> VelvetNoise <VelvetNoiseKernel<OVNImpulseLocations, Choice>> {
     let kernel = VelvetNoiseKernel(
         OVNImpulseLocations::new(density as usize, sample_rate as usize),
         Choice::classic()
@@ -213,7 +213,7 @@ fn original_velvet_noise(density: f32, sample_rate: f32) -> VelvetNoise <VelvetN
     VelvetNoise::from_kernel(kernel)
 }
 
-fn crushed_original_velvet_noise(density: f32, sample_rate: f32, skew: f64) -> VelvetNoise <VelvetNoiseKernel<OVNImpulseLocations, Choice>> {
+pub fn crushed_original_velvet_noise(density: f32, sample_rate: f32, skew: f64) -> VelvetNoise <VelvetNoiseKernel<OVNImpulseLocations, Choice>> {
     let kernel = VelvetNoiseKernel(
         OVNImpulseLocations::new(density as usize, sample_rate as usize),
         Choice::crushed(skew)
@@ -222,7 +222,7 @@ fn crushed_original_velvet_noise(density: f32, sample_rate: f32, skew: f64) -> V
     VelvetNoise::from_kernel(kernel)
 }
 
-fn additive_velvet_noise(density: f32, sample_rate: f32, delta: f32) -> VelvetNoise <VelvetNoiseKernel<ARNImpulseLocations, Choice>> {
+pub fn additive_velvet_noise(density: f32, sample_rate: f32, delta: f32) -> VelvetNoise <VelvetNoiseKernel<ARNImpulseLocations, Choice>> {
     let kernel = VelvetNoiseKernel(
         ARNImpulseLocations::new(density, sample_rate, delta),
         Choice::classic()
@@ -231,7 +231,7 @@ fn additive_velvet_noise(density: f32, sample_rate: f32, delta: f32) -> VelvetNo
     VelvetNoise::from_kernel(kernel)
 }
 
-fn crushed_additive_velvet_noise(density: f32, sample_rate: f32, delta: f32, skew: f64) -> VelvetNoise <VelvetNoiseKernel<ARNImpulseLocations, Choice>> {
+pub fn crushed_additive_velvet_noise(density: f32, sample_rate: f32, delta: f32, skew: f64) -> VelvetNoise <VelvetNoiseKernel<ARNImpulseLocations, Choice>> {
     let kernel = VelvetNoiseKernel(
         ARNImpulseLocations::new(density, sample_rate, delta),
         Choice::crushed(skew)
