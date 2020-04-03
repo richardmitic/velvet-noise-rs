@@ -65,53 +65,6 @@ impl Iterator for ARNImpulseLocations {
 }
 
 
-/// Impulse indexes that wrap around a given buffer size
-pub struct ChunkedOVNImpulseLocations {
-    impulses: OVNImpulseLocations,
-    chunk_length: usize,
-    base: usize,
-    store: Option<usize>
-}
-
-impl ChunkedOVNImpulseLocations {
-    pub fn new(density: usize, sample_rate: usize, chunk_length: usize) -> ChunkedOVNImpulseLocations {
-        ChunkedOVNImpulseLocations {
-            impulses: OVNImpulseLocations::new(density, sample_rate),
-            chunk_length: chunk_length,
-            base: 0,
-            store: None
-        }
-    }
-}
-
-impl Iterator for ChunkedOVNImpulseLocations {
-    type Item = Vec<usize>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let mut chunk: Vec<usize> = vec![];
-        
-        if let Some(x) = self.store {
-            chunk.push(x);
-            self.store = None;
-        }
-        
-        loop {
-            let x = self.impulses.next().unwrap();
-            if x - self.base < self.chunk_length {
-                chunk.push(x);
-            } else {
-                self.store = Some(x);
-                self.base += self.chunk_length;
-                break;
-            }
-        }
-
-        Some(chunk)
-    }
-}
-
-
-
 /// Random sequence of negative/positive samples
 pub struct Choice(Bernoulli, SmallRng);
 
@@ -275,8 +228,9 @@ mod tests {
         };
         let mut writer = hound::WavWriter::create(filepath, spec).unwrap();
         for s in data.into_iter() {
-            writer.write_sample(s);
+            writer.write_sample(s).unwrap();
         }
+        writer.finalize().unwrap();
     }
 
     #[test]
@@ -326,31 +280,6 @@ mod tests {
         let locs3 = ARNImpulseLocations::new(density as f32, sample_rate as f32, 0.5);
         let impulses3 = locs3.take_while(|loc| (*loc) < until).map(|x| x as f32).collect::<Vec<f32>>();
         assert_close_enough!(spread(impulses3.as_slice()), max_spread * 0.5, 2.);
-    }
-
-    #[test]
-    fn iter_chunked_locations() {
-        
-        let density = 2000;
-        let sample_rate = 96000;
-        let seconds = 100;
-        let until = sample_rate * seconds;
-        let chunk_size = 960;
-        
-        let cvil = ChunkedOVNImpulseLocations::new(density, sample_rate, chunk_size);
-        let num_impulses = cvil.take(until / chunk_size).flatten().count();
-        
-        assert_eq!(num_impulses / seconds, density);
-    }
-
-    #[test]
-    fn single_chunk() {
-        
-        let density = 2000;
-        let sample_rate = 96000;
-        
-        let chunk = ChunkedOVNImpulseLocations::new(density, sample_rate, 960).next().unwrap();
-        println!("{:?}", chunk);
     }
     
     #[test]
