@@ -6,23 +6,45 @@ use std::{io, fs};
 use sample::{signal, Sample, Frame, Signal, I24};
 use hound::WavReader;
 
-fn convolve_kern(samples: &[f32], kern: &[(usize, f32)]) -> f32 {
-    kern.iter().map(|(i, x)| samples[*i] * x).sum::<f32>()
+fn convolve_kern<F: Frame<Sample=f32>>(samples: &[F], kern: &[(usize, f32)]) -> F {
+    let mut accumulator = F::equilibrium();
+    for (i, x) in kern.iter() {
+        accumulator = accumulator.add_amp(samples[*i].scale_amp(*x));
+    }
+    accumulator
 }
 
-/// Create an endless sound as decribed in http://dafx.de/paper-archive/2018/papers/DAFx2018_paper_11.pdf
-fn process<O>(reader: WavReader<io::BufReader<fs::File>>) 
+fn i16_conv(x: i32) -> f32 {
+    (x as i16).to_sample::<f32>()
+}
+
+fn i24_conv(x: i32) -> f32 {
+    I24::new_unchecked(x).to_sample::<f32>()
+}
+
+fn default_conv(_x: i32) -> f32 {
+    panic!("Unsupported wav format");
+}
+
+fn process<I, O>(reader: WavReader<io::BufReader<fs::File>>)
 where
+    I: Sample,
     O: Frame<Sample=f32>
 {
-
     // read samples from file
     // TODO: make this generic over channels and sample type
     let spec = reader.spec().clone();
     let duration = reader.duration();
-    let sample_iter = reader.into_samples().filter_map(Result::ok).map(|x| I24::new_unchecked(x).to_sample::<f32>());
+
+    let map_func = match spec.bits_per_sample {
+        16 => i16_conv,
+        24 => i24_conv,
+        _  => default_conv
+    };
+
+    let sample_iter = reader.into_samples().filter_map(Result::ok).map(map_func);
     let sample_signal = signal::from_interleaved_samples_iter::<_, O>(sample_iter);
-    let samples = sample_signal.until_exhausted().map(|frame| *frame.channel(0).unwrap()).collect::<Vec<f32>>();
+    let samples = sample_signal.until_exhausted().collect::<Vec<O>>();
 
     // Create 10 seconds of audio
     let n_seconds = 10;
@@ -46,7 +68,7 @@ where
 
     // output
     let spec = hound::WavSpec {
-        channels: 1,
+        channels: O::n_channels() as u16,
         sample_rate: sample_rate as u32,
         bits_per_sample: 32,
         sample_format: hound::SampleFormat::Float,
@@ -57,15 +79,18 @@ where
     let gain = 0.1;
 
     for _ in 0..n_samples {
-        writer
-            .write_sample(convolve_kern(&samples, &taps) * gain)
-            .unwrap();
+        // make a new frame and write it to the output file
+        let frame = convolve_kern(&samples, &taps).scale_amp(gain);
+        for sample in frame.channels() {
+            writer.write_sample(sample).unwrap();
+        }
 
+        // move taps along delay line
         for tap in taps.iter_mut() {
             *tap = (tap.0 + 1, tap.1);
         }
 
-        // move taps along delay line
+        // create a new tap when one falls off the end
         let length_before = taps.len();
         taps.retain(|&tap| tap.0 <= max_index);
         let length_after = taps.len();
@@ -77,12 +102,15 @@ where
     writer.finalize().unwrap();
 }
 
+
+/// Create an endless sound as decribed in
+/// http://dafx.de/paper-archive/2018/papers/DAFx2018_paper_11.pdf
 pub fn main() {
-    let reader = WavReader::open("guitar_chord_stereo.wav").unwrap();
+    let reader = WavReader::open("piano_compressed_stereo.wav").unwrap();
     let channels = reader.spec().channels;
     match channels {
-        1 => process::<[f32; 1]>(reader),
-        2 => process::<[f32; 2]>(reader),
+        1 => process::<i16, [f32; 1]>(reader),
+        2 => process::<i16, [f32; 2]>(reader),
         _ => {}
     }
 }
