@@ -15,5 +15,5 @@ sample = "0.10.0"
 more-asserts = "0.2.1"
 
 [[bin]]
-name = "main"
+name = "endless"
 path = "src/main.rs"
