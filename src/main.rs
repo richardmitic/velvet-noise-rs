@@ -2,7 +2,7 @@ extern crate hound;
 extern crate sample;
 extern crate velvet_noise;
 
-use std::{io, fs};
+use std::{io, fs, env};
 use sample::{signal, Sample, Frame, Signal, I24};
 use hound::WavReader;
 
@@ -26,7 +26,7 @@ fn default_conv(_x: i32) -> f32 {
     panic!("Unsupported wav format");
 }
 
-fn process<I, O>(reader: WavReader<io::BufReader<fs::File>>)
+fn process<I, O>(reader: WavReader<io::BufReader<fs::File>>, out_file: &str)
 where
     I: Sample,
     O: Frame<Sample=f32>
@@ -73,7 +73,7 @@ where
         bits_per_sample: 32,
         sample_format: hound::SampleFormat::Float,
     };
-    let mut writer = hound::WavWriter::create("out.wav", spec).unwrap();
+    let mut writer = hound::WavWriter::create(out_file, spec).unwrap();
 
     let max_index = samples.len() - 1;
     let gain = 0.1;
@@ -106,11 +106,16 @@ where
 /// Create an endless sound as decribed in
 /// http://dafx.de/paper-archive/2018/papers/DAFx2018_paper_11.pdf
 pub fn main() {
-    let reader = WavReader::open("piano_compressed_stereo.wav").unwrap();
+    let args: Vec<String> = env::args().collect();
+    if args.len() < 3 {
+        println!("Usage: ./endless <wav in> <wav out>");
+        return;
+    }
+    let reader = WavReader::open(args[1].as_str()).unwrap();
     let channels = reader.spec().channels;
     match channels {
-        1 => process::<i16, [f32; 1]>(reader),
-        2 => process::<i16, [f32; 2]>(reader),
+        1 => process::<i16, [f32; 1]>(reader, args[2].as_str()),
+        2 => process::<i16, [f32; 2]>(reader, args[2].as_str()),
         _ => {}
     }
 }
