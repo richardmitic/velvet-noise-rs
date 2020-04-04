@@ -18,3 +18,15 @@ let samples: Vec<f32> = noise.take(44100).collect();
 
 ### Generate a velvet convolution kernel
 The unique property of velvet noise is that the majority of samples are `0.` and can hence be ignored during a convolution. To that end, this crate provides velvet convolution kernels - iterators yielding `(usize, f32)` where the first element is the index of the non-zero samples and the second element is either `1.` or `-1.`;
+
+```
+let density = 2000;
+let sample_rate = 44100;
+let kernel = VelvetNoiseKernel(
+    OVNImpulseLocations::new(density, sample_rate),
+    Choice::classic(),
+);
+for (index, coefficient) in kernel.take_while(|(index, coefficient)| (*index) < sample_rate / 8) {
+    println!("{} {}", index, coefficient);
+}
+```
