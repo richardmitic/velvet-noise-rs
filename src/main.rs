@@ -1,13 +1,11 @@
-extern crate hound;
-extern crate sample;
-extern crate velvet_noise;
-
-use std::{io, fs, env};
-use sample::{signal, Sample, Frame, Signal, I24};
+use dasp_frame::Frame;
+use dasp_sample::{Sample, I24};
+use dasp_signal::{self as signal, Signal};
 use hound::WavReader;
+use std::{env, fs, io};
 
-fn convolve_kern<F: Frame<Sample=f32>>(samples: &[F], kern: &[(usize, f32)]) -> F {
-    let mut accumulator = F::equilibrium();
+fn convolve_kern<F: Frame<Sample = f32>>(samples: &[F], kern: &[(usize, f32)]) -> F {
+    let mut accumulator = F::EQUILIBRIUM;
     for (i, x) in kern.iter() {
         accumulator = accumulator.add_amp(samples[*i].scale_amp(*x));
     }
@@ -29,7 +27,7 @@ fn default_conv(_x: i32) -> f32 {
 fn process<I, O>(reader: WavReader<io::BufReader<fs::File>>, out_file: &str)
 where
     I: Sample,
-    O: Frame<Sample=f32>
+    O: Frame<Sample = f32>,
 {
     // read samples from file
     // TODO: make this generic over channels and sample type
@@ -39,7 +37,7 @@ where
     let map_func = match spec.bits_per_sample {
         16 => i16_conv,
         24 => i24_conv,
-        _  => default_conv
+        _ => default_conv,
     };
 
     let sample_iter = reader.into_samples().filter_map(Result::ok).map(map_func);
@@ -68,7 +66,7 @@ where
 
     // output
     let spec = hound::WavSpec {
-        channels: O::n_channels() as u16,
+        channels: O::CHANNELS as u16,
         sample_rate: sample_rate as u32,
         bits_per_sample: 32,
         sample_format: hound::SampleFormat::Float,
@@ -101,7 +99,6 @@ where
 
     writer.finalize().unwrap();
 }
-
 
 /// Create an endless sound as decribed in
 /// http://dafx.de/paper-archive/2018/papers/DAFx2018_paper_11.pdf

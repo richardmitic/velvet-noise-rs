@@ -9,7 +9,9 @@ edition = "2018"
 [dependencies]
 rand = { version="0.7", features=["small_rng"] }
 hound = "3.4.0"
-sample = "0.10.0"
+dasp_sample = "0.11.0"
+dasp_frame = "0.11.0"
+dasp_signal = "0.11.0"
 
 [dev-dependencies]
 more-asserts = "0.2.1"
