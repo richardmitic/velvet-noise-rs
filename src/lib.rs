@@ -232,6 +232,7 @@ mod tests {
         max - min
     }
 
+    #[allow(dead_code)]
     fn save(sample_rate: u32, data: Vec<f32>, filepath: &str) {
         let spec = hound::WavSpec {
             channels: 1,
@@ -421,7 +422,7 @@ mod tests {
             Choice::classic(),
         );
         for (index, coefficient) in
-            kernel.take_while(|(index, coefficient)| (*index) < sample_rate / 8)
+            kernel.take_while(|(index, _coefficient)| (*index) < sample_rate / 8)
         {
             println!("{} {}", index, coefficient);
         }
