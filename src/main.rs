@@ -5,11 +5,9 @@ use hound::WavReader;
 use std::{env, fs, io};
 
 fn convolve_kern<F: Frame<Sample = f32>>(samples: &[F], kern: &[(usize, f32)]) -> F {
-    let mut accumulator = F::EQUILIBRIUM;
-    for (i, x) in kern.iter() {
-        accumulator = accumulator.add_amp(samples[*i].scale_amp(*x));
-    }
-    accumulator
+    kern.iter().fold(F::EQUILIBRIUM, |accumulator, (i, x)| {
+        accumulator.add_amp(samples[*i].scale_amp(*x))
+    })
 }
 
 fn i16_conv(x: i32) -> f32 {
