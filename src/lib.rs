@@ -411,4 +411,19 @@ mod tests {
 
         // save(sample_rate as u32, samples, "iter_crushed_arn_noise_samples.wav");
     }
+
+    #[test]
+    fn readme() {
+        let density = 2000;
+        let sample_rate = 44100;
+        let kernel = VelvetNoiseKernel(
+            OVNImpulseLocations::new(density, sample_rate),
+            Choice::classic(),
+        );
+        for (index, coefficient) in
+            kernel.take_while(|(index, coefficient)| (*index) < sample_rate / 8)
+        {
+            println!("{} {}", index, coefficient);
+        }
+    }
 }
