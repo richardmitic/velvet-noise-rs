@@ -95,7 +95,10 @@ impl Iterator for Choice {
 /// Velvet Noise Kernal
 /// Iterator that will generate (index, coefficient) pairs.
 /// All indices not given in a pair are assumed to contain a 0 coefficient
-pub struct VelvetNoiseKernel<T: Iterator<Item = usize>, U: Iterator<Item = f32>>(pub T, pub U);
+pub struct VelvetNoiseKernel<T: Iterator<Item = usize>, U: Iterator<Item = f32>> {
+    indices: T,
+    coefficients: U,
+}
 
 impl<T, U> Iterator for VelvetNoiseKernel<T, U>
 where
@@ -105,10 +108,30 @@ where
     type Item = (usize, f32);
 
     fn next(&mut self) -> Option<Self::Item> {
-        match (self.0.next(), self.1.next()) {
+        match (self.indices.next(), self.coefficients.next()) {
             (Some(i), Some(x)) => Some((i, x)),
             _ => None,
         }
+    }
+}
+
+impl<T, U> VelvetNoiseKernel<T, U>
+where
+    T: Iterator<Item = usize>,
+    U: Iterator<Item = f32>,
+{
+    pub fn new(indices: T, coefficients: U) -> Self {
+        Self {
+            indices,
+            coefficients,
+        }
+    }
+
+    pub fn render(self, min_idx: usize, max_idx: usize, gain: f32) -> Vec<(usize, f32)> {
+        self.skip_while(|(idx, _coeff)| idx < &min_idx)
+            .take_while(|(idx, _coeff)| idx < &max_idx)
+            .map(|(_idx, coeff)| (_idx, coeff * gain))
+            .collect()
     }
 }
 
@@ -161,7 +184,7 @@ pub fn original_velvet_noise(
     density: f32,
     sample_rate: f32,
 ) -> VelvetNoise<VelvetNoiseKernel<OVNImpulseLocations, Choice>> {
-    let kernel = VelvetNoiseKernel(
+    let kernel = VelvetNoiseKernel::new(
         OVNImpulseLocations::new(density as usize, sample_rate as usize),
         Choice::classic(),
     );
@@ -174,7 +197,7 @@ pub fn crushed_original_velvet_noise(
     sample_rate: f32,
     skew: f64,
 ) -> VelvetNoise<VelvetNoiseKernel<OVNImpulseLocations, Choice>> {
-    let kernel = VelvetNoiseKernel(
+    let kernel = VelvetNoiseKernel::new(
         OVNImpulseLocations::new(density as usize, sample_rate as usize),
         Choice::crushed(skew),
     );
@@ -187,7 +210,7 @@ pub fn additive_velvet_noise(
     sample_rate: f32,
     delta: f32,
 ) -> VelvetNoise<VelvetNoiseKernel<ARNImpulseLocations, Choice>> {
-    let kernel = VelvetNoiseKernel(
+    let kernel = VelvetNoiseKernel::new(
         ARNImpulseLocations::new(density, sample_rate, delta),
         Choice::classic(),
     );
@@ -201,7 +224,7 @@ pub fn crushed_additive_velvet_noise(
     delta: f32,
     skew: f64,
 ) -> VelvetNoise<VelvetNoiseKernel<ARNImpulseLocations, Choice>> {
-    let kernel = VelvetNoiseKernel(
+    let kernel = VelvetNoiseKernel::new(
         ARNImpulseLocations::new(density, sample_rate, delta),
         Choice::crushed(skew),
     );
@@ -326,7 +349,7 @@ mod tests {
 
     #[test]
     fn kernel_init() {
-        let kern = VelvetNoiseKernel(OVNImpulseLocations::new(10, 20), Choice::classic());
+        let kern = VelvetNoiseKernel::new(OVNImpulseLocations::new(10, 20), Choice::classic());
 
         for (i, x) in kern.skip(1).take(10) {
             assert_gt!(i, 0);
@@ -336,7 +359,7 @@ mod tests {
 
     #[test]
     fn noise_from_kernel() {
-        let kernel = VelvetNoiseKernel(OVNImpulseLocations::new(10, 20), Choice::classic());
+        let kernel = VelvetNoiseKernel::new(OVNImpulseLocations::new(10, 20), Choice::classic());
 
         let noise = VelvetNoise::from_kernel(kernel);
         for sample in noise.skip(1).take(20) {
@@ -417,7 +440,7 @@ mod tests {
     fn readme() {
         let density = 2000;
         let sample_rate = 44100;
-        let kernel = VelvetNoiseKernel(
+        let kernel = VelvetNoiseKernel::new(
             OVNImpulseLocations::new(density, sample_rate),
             Choice::classic(),
         );
